@@ -241,8 +241,8 @@
   .p-approval-table { width: 100%; border-collapse: collapse; }
   .p-approval-table td { border: 1px solid var(--line); padding: 5px 7px; font-size: 11px; }
   .p-approval-table td.p-approval-excluded {
+    height: 40px;
     background-image: linear-gradient(to bottom right, transparent calc(50% - 1px), var(--line-strong) calc(50% - 1px), var(--line-strong) calc(50% + 1px), transparent calc(50% + 1px));
-    text-align: center; color: var(--muted); font-size: 10.5px; vertical-align: middle;
   }
 
   /* preview sheet */
@@ -847,13 +847,11 @@
       : "";
     var approvalsHtml = '<table class="p-approval-table"><tr>' +
       state.approvals.map(function (a) {
-        if (a.excluded) return '<td class="p-approval-excluded" rowspan="2">' + (esc(a.role) || '<span class="p-empty">제외</span>') + '</td>';
         return '<td><b>' + (esc(a.role) || '<span class="p-empty">직책</span>') + '</b></td>';
       }).join("") +
       '</tr><tr>' +
       state.approvals.map(function (a) {
-        if (a.excluded) return "";
-        return '<td style="height:40px;"></td>';
+        return a.excluded ? '<td class="p-approval-excluded"></td>' : '<td style="height:40px;"></td>';
       }).join("") +
       '</tr></table>';
 
@@ -918,12 +916,8 @@
     // 결재란
     var appHeadCells = "", appSignCells = "";
     state.approvals.forEach(function (a) {
-      if (a.excluded) {
-        appHeadCells += '<td class="pr-role pr-excluded" rowspan="2">' + (esc(a.role) || "") + '</td>';
-      } else {
-        appHeadCells += '<td class="pr-role">' + (esc(a.role) || "직책") + '</td>';
-        appSignCells += '<td class="pr-sign"></td>';
-      }
+      appHeadCells += '<td class="pr-role">' + (esc(a.role) || "직책") + '</td>';
+      appSignCells += '<td class="pr-sign' + (a.excluded ? " pr-excluded" : "") + '"></td>';
     });
     var appHtml =
       '<table class="pr-apptable"><tr><td class="pr-applabel" rowspan="2">결&nbsp;재</td>' + appHeadCells + '</tr>' +
@@ -1354,25 +1348,21 @@
       var bounds = [];
       for (var i = 0; i <= n; i++) bounds.push(SLOT_START_COL + Math.round(i * totalSlotCols / n));
       box(colLetter(LABEL_COL) + HEADER_ROW + ":" + colLetter(LABEL_COL) + SIGN_ROW, { value: "결재", font: { bold: true, size: 12 }, fill: GRAY_FILL });
+      // 제외(빗금)는 직책 표시(31행)는 그대로 두고, 서명란(32행)에만 대각선 한 줄을 긋는다.
       // Excel의 채우기 패턴(lightUp 등)은 반복 해칭만 지원하고, 테두리의 대각선 속성은 병합된
-      // 여러 칸에 걸쳐 늘어나지 않고 칸 하나 폭 안에서만 그려진다. 그래서 병합 범위 전체를
+      // 여러 칸에 걸쳐 늘어나지 않고 칸 하나 폭 안에서만 그려진다. 그래서 32행 범위 전체를
       // 가로지르는 대각선 한 줄은 정사각형 캔버스에 모서리-모서리로 그린 투명 PNG를 그 범위에
       // 꽉 채워 늘려 넣는 방식으로 구현한다 (늘어나도 모서리 대 모서리 선은 그대로 유지됨).
       var diagonalLinePng = makeDiagonalLinePng();
       for (var s = 0; s < n; s++) {
         var a = state.approvals[s] || { role: "", excluded: false };
         var c1 = bounds[s], c2 = Math.max(bounds[s + 1] - 1, c1);
+        var signRange = colLetter(c1) + SIGN_ROW + ":" + colLetter(c2) + SIGN_ROW;
+        box(colLetter(c1) + HEADER_ROW + ":" + colLetter(c2) + HEADER_ROW, { value: a.role || "직책", font: { bold: true, size: 11 }, fill: GRAY_FILL });
+        box(signRange, {});
         if (a.excluded) {
-          var exRange = colLetter(c1) + HEADER_ROW + ":" + colLetter(c2) + SIGN_ROW;
-          box(exRange, {
-            value: a.role || "",
-            font: { bold: true, size: 10, color: { argb: "FF666666" } }
-          });
           var diagId = wb.addImage({ base64: diagonalLinePng, extension: "png" });
-          ws.addImage(diagId, rangeToAnchor(exRange));
-        } else {
-          box(colLetter(c1) + HEADER_ROW + ":" + colLetter(c2) + HEADER_ROW, { value: a.role || "직책", font: { bold: true, size: 11 }, fill: GRAY_FILL });
-          box(colLetter(c1) + SIGN_ROW + ":" + colLetter(c2) + SIGN_ROW, {});
+          ws.addImage(diagId, rangeToAnchor(signRange));
         }
       }
     })();

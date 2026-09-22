@@ -241,7 +241,7 @@
   .p-approval-table { width: 100%; border-collapse: collapse; }
   .p-approval-table td { border: 1px solid var(--line); padding: 5px 7px; font-size: 11px; }
   .p-approval-table td.p-approval-excluded {
-    background-image: repeating-linear-gradient(135deg, transparent, transparent 5px, var(--line-strong) 5px, var(--line-strong) 6px);
+    background-image: linear-gradient(to bottom right, transparent calc(50% - 1px), var(--line-strong) calc(50% - 1px), var(--line-strong) calc(50% + 1px), transparent calc(50% + 1px));
     text-align: center; color: var(--muted); font-size: 10.5px; vertical-align: middle;
   }
 
@@ -331,8 +331,7 @@
   #printSheet .pr-appcell .pr-applabel { width: 5mm; writing-mode: vertical-rl; text-align: center; font-weight: 700; background: #eee; }
   #printSheet .pr-appcell .pr-role { height: 6mm; font-weight: 700; background: #eee; }
   #printSheet .pr-appcell .pr-excluded {
-    background-color: #eee;
-    background-image: repeating-linear-gradient(135deg, transparent, transparent 1.1mm, rgba(0,0,0,0.55) 1.1mm, rgba(0,0,0,0.55) 1.3mm);
+    background-image: linear-gradient(to bottom right, transparent calc(50% - 0.4mm), rgba(0,0,0,0.7) calc(50% - 0.4mm), rgba(0,0,0,0.7) calc(50% + 0.4mm), transparent calc(50% + 0.4mm));
     font-weight: 700; color: #333;
   }
   #printSheet .pr-statrow td { text-align: center; }
@@ -1171,6 +1170,21 @@
       br: { col: Math.max(p1.col, p2.col), row: Math.max(p1.row, p2.row) }
     };
   }
+  // 결재란 "제외(빗금)" 표시용: 정사각형 캔버스 모서리에서 모서리로 대각선 한 줄만 그린
+  // 투명 PNG. 병합 범위에 꽉 채워 늘려 넣으면(rangeToAnchor) 늘어난 비율과 무관하게
+  // 항상 그 범위의 모서리 대 모서리를 잇는 대각선으로 보인다.
+  function makeDiagonalLinePng() {
+    var c = document.createElement("canvas");
+    c.width = 100; c.height = 100;
+    var ctx = c.getContext("2d");
+    ctx.strokeStyle = "#8a8a8a";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(3, 3);
+    ctx.lineTo(97, 97);
+    ctx.stroke();
+    return c.toDataURL("image/png");
+  }
 
   function buildWorkbook() {
     var wb = new ExcelJS.Workbook();
@@ -1340,15 +1354,22 @@
       var bounds = [];
       for (var i = 0; i <= n; i++) bounds.push(SLOT_START_COL + Math.round(i * totalSlotCols / n));
       box(colLetter(LABEL_COL) + HEADER_ROW + ":" + colLetter(LABEL_COL) + SIGN_ROW, { value: "결재", font: { bold: true, size: 12 }, fill: GRAY_FILL });
+      // Excel의 채우기 패턴(lightUp 등)은 반복 해칭만 지원하고, 테두리의 대각선 속성은 병합된
+      // 여러 칸에 걸쳐 늘어나지 않고 칸 하나 폭 안에서만 그려진다. 그래서 병합 범위 전체를
+      // 가로지르는 대각선 한 줄은 정사각형 캔버스에 모서리-모서리로 그린 투명 PNG를 그 범위에
+      // 꽉 채워 늘려 넣는 방식으로 구현한다 (늘어나도 모서리 대 모서리 선은 그대로 유지됨).
+      var diagonalLinePng = makeDiagonalLinePng();
       for (var s = 0; s < n; s++) {
         var a = state.approvals[s] || { role: "", excluded: false };
         var c1 = bounds[s], c2 = Math.max(bounds[s + 1] - 1, c1);
         if (a.excluded) {
-          box(colLetter(c1) + HEADER_ROW + ":" + colLetter(c2) + SIGN_ROW, {
+          var exRange = colLetter(c1) + HEADER_ROW + ":" + colLetter(c2) + SIGN_ROW;
+          box(exRange, {
             value: a.role || "",
-            font: { bold: true, size: 10, color: { argb: "FF666666" } },
-            fill: { type: "pattern", pattern: "lightUp", fgColor: { argb: "FFB0B0B0" } }
+            font: { bold: true, size: 10, color: { argb: "FF666666" } }
           });
+          var diagId = wb.addImage({ base64: diagonalLinePng, extension: "png" });
+          ws.addImage(diagId, rangeToAnchor(exRange));
         } else {
           box(colLetter(c1) + HEADER_ROW + ":" + colLetter(c2) + HEADER_ROW, { value: a.role || "직책", font: { bold: true, size: 11 }, fill: GRAY_FILL });
           box(colLetter(c1) + SIGN_ROW + ":" + colLetter(c2) + SIGN_ROW, {});

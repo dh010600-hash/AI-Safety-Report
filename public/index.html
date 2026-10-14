@@ -492,7 +492,6 @@
   var CHECK_DEFS = [
     { key: "safety", label: "일일 안전점검" },
     { key: "hazmat", label: "위험물 저장소 점검" },
-    { key: "sl", label: "S/L 점검", hasCount: true },
     { key: "heat", label: "온열질환 자율 점검", defaultRemoved: true },
     { key: "patrol", label: "작업장 순회점검" },
     { key: "equip", label: "장비 점검", hasEquip: true }
@@ -532,7 +531,7 @@
   } catch (e) {}
 
   CHECK_DEFS.forEach(function (d) {
-    state.checks[d.key] = { removed: !!d.defaultRemoved, ok: true, note: "", count: 5, items: [] };
+    state.checks[d.key] = { removed: !!d.defaultRemoved, ok: true, note: "", items: [] };
   });
 
   function addTrade(name, count, work) {
@@ -669,11 +668,9 @@
       var c = state.checks[def.key];
       var row = document.createElement("div");
       row.className = "check-row" + (c.removed ? " removed" : "");
-      var nameHtml = esc(def.label) + (def.hasCount ? ' <span class="num" style="font-weight:400;color:var(--muted);">(' + c.count + '대)</span>' : "");
       row.innerHTML =
         '<div class="check-top">' +
-          '<span class="check-name">' + nameHtml + '</span>' +
-          (def.hasCount ? '<input type="number" class="sl-count" min="0" style="width:64px;" value="' + c.count + '">' : "") +
+          '<span class="check-name">' + esc(def.label) + '</span>' +
           '<div class="seg"><button type="button" class="seg-ok on ok">무</button><button type="button" class="seg-bad">유</button></div>' +
           '<button type="button" class="icon-btn check-remove" title="제외">×</button>' +
         '</div>' +
@@ -694,9 +691,6 @@
       row.querySelector(".check-remove").addEventListener("click", function () {
         c.removed = true; renderCheckRows(); updateRemovedHint(); renderPreview();
       });
-      if (def.hasCount) {
-        row.querySelector(".sl-count").addEventListener("input", function (e) { c.count = Number(e.target.value || 0); renderPreview(); });
-      }
       if (def.hasEquip) {
         var listEl = row.querySelector(".equip-list");
         function renderEquip() {
@@ -824,7 +818,7 @@
       }
     } else if (c.ok) {
       badge = '<span class="p-badge ok">무</span>';
-      text = def.hasCount ? (c.count + "대 점검 완료") : "이상 없음";
+      text = "이상 없음";
     } else {
       badge = '<span class="p-badge warn">유</span>';
       text = esc(c.note) || '<span class="p-empty">조치사항 미입력</span>';
@@ -941,8 +935,7 @@
         content = def.label + (c.ok ? " 결과 이상 무" : " 결과 이상 유");
         action = c.ok ? itemsText : esc(c.note);
       } else {
-        var label = def.hasCount ? def.label + " (" + c.count + "대)" : def.label;
-        content = label + (c.ok ? " 결과 이상 무" : " 결과 이상 유");
+        content = def.label + (c.ok ? " 결과 이상 무" : " 결과 이상 유");
         action = c.ok ? "" : esc(c.note);
       }
       return '<tr>' + (i === 0 ? '<td class="pr-label" rowspan="' + checkList.length + '">일일<br>위험성<br>평가</td>' : "") +
@@ -1132,7 +1125,7 @@
   var GRAY_FILL = { type: "pattern", pattern: "solid", fgColor: { argb: "FFD9D9D9" } };
 
   // 일일 위험성평가 항목 순서(server.ps1 압축 로직과 동일: 장비가 순회점검보다 먼저)
-  var CHECK_EXPORT_ORDER = ["safety", "hazmat", "sl", "heat", "equip", "patrol"];
+  var CHECK_EXPORT_ORDER = ["safety", "hazmat", "heat", "equip", "patrol"];
 
   function colToNum(letters) {
     var n = 0;
@@ -1281,8 +1274,7 @@
         return;
       }
       // CHECK_DEFS의 label 자체가 이미 "~점검"으로 끝나므로 "점검"을 다시 붙이지 않는다.
-      // S/L만 실제 서식과 같이 "S/L (n대) 점검 결과..." 순서로 대수를 "점검" 앞에 넣는다.
-      var label = (def.hasCount ? "S/L (" + c.count + "대) 점검" : def.label) + " 결과 이상 " + (c.ok ? "무" : "유");
+      var label = def.label + " 결과 이상 " + (c.ok ? "무" : "유");
       checkEntries.push({ label: label, note: c.ok ? "" : c.note });
     });
     for (var ci = 0; ci < 6; ci++) {
